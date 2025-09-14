@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Controller for ESP32</title>
+    <style>
+        :root {
+            --primary: #00ff9d;
+            --secondary: #00b8ff;
+            --accent: #ff00c8;
+            --dark: #0a0a1a;
+            --darker: #050510;
+            --light: #f0f0ff;
+            --error: #ff3860;
+            --success: #23d160;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--darker), var(--dark));
+            color: var(--light);
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            border-bottom: 1px solid rgba(0, 255, 157, 0.3);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+        }
+
+        .subtitle {
+            color: var(--secondary);
+            font-size: 1.2rem;
+        }
+
+        .card {
+            background: rgba(10, 10, 26, 0.8);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5),
+                        0 0 15px rgba(0, 255, 157, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 157, 0.1);
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+        }
+
+        .card-title i {
+            margin-right: 10px;
+            font-size: 1.8rem;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--secondary);
+            font-weight: 500;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 184, 255, 0.3);
+            background: rgba(5, 5, 16, 0.7);
+            color: var(--light);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 15px rgba(0, 184, 255, 0.5);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button i {
+            margin-right: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: var(--darker);
+            box-shadow: 0 5px 15px rgba(0, 255, 157, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 255, 157, 0.6);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 0, 200, 0.2);
+            color: var(--accent);
+            border: 2px solid var(--accent);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 0, 200, 0.3);
+            box-shadow: 0 0 15px rgba(255, 0, 200, 0.5);
+        }
+
+        .mic-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            font-size: 1.8rem;
+            margin: 0 auto;
+            display: block;
+            position: relative;
+        }
+
+        .mic-btn.listening {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 0 20px var(--accent),
+                        0 0 40px var(--accent),
+                        0 0 60px var(--accent);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 20px var(--accent); }
+            50% { box-shadow: 0 0 30px var(--accent); }
+            100% { box-shadow: 0 0 20px var(--accent); }
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .status.connected {
+            background: rgba(35, 209, 96, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .status.disconnected {
+            background: rgba(255, 56, 96, 0.2);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
+        .status.sending {
+            background: rgba(0, 184, 255, 0.2);
+            color: var(--secondary);
+            border: 1px solid var(--secondary);
+        }
+
+        .history-list {
+            list-style: none;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+            border-radius: 10px;
+            background: rgba(5, 5, 16, 0.5);
+            padding: 10px;
+        }
+
+        .history-list li {
+            padding: 12px 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-list li:last-child {
+            border-bottom: none;
+        }
+
+        .history-list li .timestamp {
+            font-size: 0.8rem;
+            color: var(--secondary);
+        }
+
+        .speech-result {
+            min-height: 100px;
+            padding: 15px;
+            border-radius: 10px;
+            background: rgba(5, 5, 16, 0.7);
+            margin-top: 20px;
+            border: 1px solid rgba(0, 184, 255, 0.3);
+            color: var(--light);
+            font-size: 1.1rem;
+        }
+
+        .speech-placeholder {
+            color: rgba(240, 240, 255, 0.5);
+            font-style: italic;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: var(--secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .button-group {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Voice Controller for ESP32</h1>
+            <p class="subtitle">Kontrol perangkat ESP32 dengan suara Anda</p>
+        </header>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-wifi"></i> Konfigurasi Koneksi</h2>
+            <div class="input-group">
+                <label for="ipAddress">Alamat IP ESP32</label>
+                <input type="text" id="ipAddress" placeholder="Contoh: 192.168.1.100">
+            </div>
+            <div id="connectionStatus" class="status disconnected">Tidak terhubung</div>
+            <button id="testConnection" class="btn-primary">
+                <i class="fas fa-plug"></i> Test Koneksi
+            </button>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-microphone"></i> Input Suara</h2>
+            <button id="micButton" class="mic-btn btn-secondary">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <div id="speechResult" class="speech-result">
+                <div class="speech-placeholder">Tekan tombol mikrofon dan mulai berbicara...</div>
+            </div>
+            <div id="recognitionStatus" class="status">Siap mendengarkan</div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-keyboard"></i> Input Teks</h2>
+            <div class="input-group">
+                <label for="questionInput">Masukkan pertanyaan secara manual</label>
+                <input type="text" id="questionInput" placeholder="Ketik pertanyaan di sini...">
+            </div>
+            <button id="sendButton" class="btn-primary">
+                <i class="fas fa-paper-plane"></i> Kirim Pertanyaan
+            </button>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title"><i class="fas fa-history"></i> Riwayat Pertanyaan</h2>
+            <p>Hanya riwayat terakhir yang akan dikirim ke ESP32</p>
+            <ul id="historyList" class="history-list">
+                <!-- Riwayat akan ditambahkan di sini -->
+            </ul>
+            <div class="button-group">
+                <button id="sendLastButton" class="btn-primary">
+                    <i class="fas fa-share"></i> Kirim Riwayat Terakhir
+                </button>
+                <button id="clearHistoryButton" class="btn-secondary">
+                    <i class="fas fa-trash"></i> Hapus Riwayat
+                </button>
+            </div>
+        </div>
+
+        <footer>
+            <p>© 2023 Voice Controller for ESP32 | Dibuat dengan <i class="fas fa-heart" style="color: var(--accent);"></i></p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elemen UI
+            const ipAddressInput = document.getElementById('ipAddress');
+            const testConnectionBtn = document.getElementById('testConnection');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const micButton = document.getElementById('micButton');
+            const speechResult = document.getElementById('speechResult');
+            const recognitionStatus = document.getElementById('recognitionStatus');
+            const questionInput = document.getElementById('questionInput');
+            const sendButton = document.getElementById('sendButton');
+            const historyList = document.getElementById('historyList');
+            const sendLastButton = document.getElementById('sendLastButton');
+            const clearHistoryButton = document.getElementById('clearHistoryButton');
+
+            // Variabel state
+            let recognition = null;
+            let isListening = false;
+            let questionHistory = [];
+            let esp32IP = '';
+
+            // Inisialisasi dari localStorage jika ada
+            const savedIP = localStorage.getItem('esp32IP');
+            if (savedIP) {
+                ipAddressInput.value = savedIP;
+                esp32IP = savedIP;
+            }
+
+            const savedHistory = localStorage.getItem('questionHistory');
+            if (savedHistory) {
+                questionHistory = JSON.parse(savedHistory);
+                updateHistoryDisplay();
+            }
+
+            // Event Listeners
+            ipAddressInput.addEventListener('change', function() {
+                esp32IP = this.value;
+                localStorage.setItem('esp32IP', esp32IP);
+                updateConnectionStatus('disconnected', 'Alamat IP diperbarui');
+            });
+
+            testConnectionBtn.addEventListener('click', testConnection);
+            micButton.addEventListener('click', toggleSpeechRecognition);
+            sendButton.addEventListener('click', sendManualQuestion);
+            sendLastButton.addEventListener('click', sendLastHistory);
+            clearHistoryButton.addEventListener('click', clearHistory);
+
+            // Inisialisasi Web Speech API
+            initSpeechRecognition();
+
+            // Fungsi inisialisasi pengenalan suara
+            function initSpeechRecognition() {
+                if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    recognition = new SpeechRecognition();
+                    recognition.continuous = false;
+                    recognition.interimResults = true;
+                    recognition.lang = 'id-ID'; // Bahasa Indonesia
+
+                    recognition.onstart = function() {
+                        isListening = true;
+                        micButton.classList.add('listening');
+                        recognitionStatus.textContent = 'Mendengarkan...';
+                        recognitionStatus.className = 'status sending';
+                    };
+
+                    recognition.onresult = function(event) {
+                        let interimTranscript = '';
+                        let finalTranscript = '';
+
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                finalTranscript += transcript;
+                            } else {
+                                interimTranscript += transcript;
+                            }
+                        }
+
+                        if (finalTranscript) {
+                            speechResult.innerHTML = `<strong>${finalTranscript}</strong>`;
+                            addToHistory(finalTranscript);
+                            sendQuestionToESP32(finalTranscript);
+                        } else if (interimTranscript) {
+                            speechResult.innerHTML = interimTranscript;
+                        }
+                    };
+
+                    recognition.onerror = function(event) {
+                        console.error('Speech recognition error', event.error);
+                        recognitionStatus.textContent = `Error: ${getErrorDescription(event.error)}`;
+                        recognitionStatus.className = 'status disconnected';
+                        resetRecognition();
+                    };
+
+                    recognition.onend = function() {
+                        resetRecognition();
+                    };
+                } else {
+                    recognitionStatus.textContent = 'Browser tidak mendukung Web Speech API';
+                    recognitionStatus.className = 'status disconnected';
+                    micButton.disabled = true;
+                }
+            }
+
+            function getErrorDescription(errorCode) {
+                const errorMap = {
+                    'no-speech': 'Tidak ada suara terdeteksi',
+                    'audio-capture': 'Tidak dapat mengakses mikrofon',
+                    'network': 'Terjadi kesalahan jaringan',
+                    'not-allowed': 'Izin menggunakan mikrofon tidak diberikan'
+                };
+                return errorMap[errorCode] || `Kesalahan tidak dikenal: ${errorCode}`;
+            }
+
+            function toggleSpeechRecognition() {
+                if (isListening) {
+                    recognition.stop();
+                } else {
+                    speechResult.innerHTML = '<div class="speech-placeholder">Mendengarkan... Silakan berbicara sekarang.</div>';
+                    recognition.start();
+                }
+            }
+
+            function resetRecognition() {
+                isListening = false;
+                micButton.classList.remove('listening');
+                recognitionStatus.textContent = 'Siap mendengarkan';
+                recognitionStatus.className = 'status';
+            }
+
+            function testConnection() {
+                if (!esp32IP) {
+                    updateConnectionStatus('disconnected', 'Masukkan alamat IP ESP32 terlebih dahulu');
+                    return;
+                }
+
+                updateConnectionStatus('sending', 'Menguji koneksi...');
+                
+                // Menggunakan fetch dengan timeout
+                const timeout = 5000; // 5 detik timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                fetch(`http://${esp32IP}/test`, {
+                    method: 'GET',
+                    mode: 'no-cors',
+                    signal: controller.signal
+                })
+                .then(() => {
+                    clearTimeout(timeoutId);
+                    updateConnectionStatus('connected', 'Terhubung ke ESP32');
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        updateConnectionStatus('disconnected', 'Timeout: ESP32 tidak merespons');
+                    } else {
+                        updateConnectionStatus('disconnected', `Tidak dapat terhubung: ${error.message}`);
+                    }
+                });
+            }
+
+            function updateConnectionStatus(status, message) {
+                connectionStatus.textContent = message;
+                connectionStatus.className = `status ${status}`;
+            }
+
+            function sendManualQuestion() {
+                const question = questionInput.value.trim();
+                if (question) {
+                    addToHistory(question);
+                    sendQuestionToESP32(question);
+                    questionInput.value = '';
+                }
+            }
+
+            function addToHistory(question) {
+                const timestamp = new Date().toLocaleTimeString();
+                questionHistory.push({ question, timestamp });
+                
+                // Simpan ke localStorage
+                localStorage.setItem('questionHistory', JSON.stringify(questionHistory));
+                
+                updateHistoryDisplay();
+            }
+
+            function updateHistoryDisplay() {
+                historyList.innerHTML = '';
+                
+                if (questionHistory.length === 0) {
+                    historyList.innerHTML = '<li>Riwayat pertanyaan kosong</li>';
+                    return;
+                }
+                
+                // Tampilkan riwayat terbalik (yang terbaru di atas)
+                const reversedHistory = [...questionHistory].reverse();
+                
+                reversedHistory.forEach((item, index) => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span>${item.question}</span>
+                        <span class="timestamp">${item.timestamp}</span>
+                    `;
+                    historyList.appendChild(li);
+                });
+            }
+
+            function sendQuestionToESP32(question) {
+                if (!esp32IP) {
+                    updateConnectionStatus('disconnected', 'Atur alamat IP terlebih dahulu');
+                    return;
+                }
+
+                updateConnectionStatus('sending', 'Mengirim pertanyaan...');
+                
+                // Format data untuk dikirim
+                const data = {
+                    question: question,
+                    timestamp: new Date().toISOString()
+                };
+
+                // Menggunakan fetch dengan timeout
+                const timeout = 10000; // 10 detik timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+               fetch(`http://${esp32IP}/command`, {
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  body: `text=${encodeURIComponent(question)}`,
+  signal: controller.signal
+})
+
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    if (response.ok) {
+                        updateConnectionStatus('connected', 'Pertanyaan berhasil dikirim!');
+                    } else {
+                        updateConnectionStatus('disconnected', 'ESP32 menolak permintaan');
+                    }
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        updateConnectionStatus('disconnected', 'Timeout: Gagal mengirim pertanyaan');
+                    } else {
+                        updateConnectionStatus('disconnected', `Gagal mengirim: ${error.message}`);
+                    }
+                });
+            }
+
+            function sendLastHistory() {
+                if (questionHistory.length > 0) {
+                    const lastQuestion = questionHistory[questionHistory.length - 1];
+                    sendQuestionToESP32(lastQuestion.question);
+                }
+            }
+
+            function clearHistory() {
+                questionHistory = [];
+                localStorage.removeItem('questionHistory');
+                updateHistoryDisplay();
+            }
+        });
+    </script>
+</body>
+</html>
